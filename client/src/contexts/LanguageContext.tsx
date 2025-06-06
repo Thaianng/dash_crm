@@ -44,6 +44,10 @@ const translations = {
     'table.postalCode': 'CP',
     'table.status': 'Statut',
     'table.notes': 'Notes',
+    'table.actions': 'Actions',
+    'table.delete': 'Supprimer cette ligne',
+    'delete.confirm': 'Êtes-vous sûr de vouloir supprimer cette ligne ?',
+    'delete.error': 'Erreur lors de la suppression. Veuillez réessayer.',
 
     // Filters
     'filter.product': 'Produit',
@@ -203,6 +207,10 @@ const translations = {
     'table.postalCode': 'Postal Code',
     'table.status': 'Status',
     'table.notes': 'Notes',
+    'table.actions': 'Actions',
+    'table.delete': 'Delete this row',
+    'delete.confirm': 'Are you sure you want to delete this row?',
+    'delete.error': 'Error deleting row. Please try again.',
 
     // Filters
     'filter.product': 'Product',

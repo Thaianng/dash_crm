@@ -170,7 +170,6 @@ Chỉnh sửa trong `CampaignTable.tsx` và `App.css`:
 
 - [ ] Tích hợp database
 - [ ] Authentication/Authorization
-- [ ] Export dữ liệu ra Excel/PDF
 - [ ] Tích hợp trực tiếp với Google Ads, Facebook Ads API
 - [ ] Notifications real-time
 - [ ] Báo cáo chi tiết theo thời gian

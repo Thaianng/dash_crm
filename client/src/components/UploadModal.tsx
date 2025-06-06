@@ -188,7 +188,7 @@ const UploadModal: React.FC<UploadModalProps> = ({ onClose, onUploadSuccess }) =
           </div>
           
           <div style={{ marginTop: '0.75rem', padding: '0.5rem', backgroundColor: '#e3f2fd', borderRadius: '4px', fontSize: '0.8rem', color: '#1565c0' }}>
-            💡 <strong>Tip:</strong> Hệ thống tự động nhận diện nhiều tên cột khác nhau (tiếng Việt, Pháp, Anh)
+            💡 <strong>Tip:</strong> The system automatically recognizes many different column names (Vietnamese, French, English)
           </div>
         </div>
       </div>

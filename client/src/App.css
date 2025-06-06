@@ -29,6 +29,11 @@ body {
   flex: 1;
   padding: 24px;
   background-color: #f8fafc;
+  transition: margin-left 0.3s ease;
+}
+
+.main-content.sidebar-collapsed {
+  margin-left: 0;
 }
 
 .header {
@@ -80,11 +85,49 @@ body {
   border-right: 1px solid #e2e8f0;
   padding: 1.5rem 0;
   box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+  transition: width 0.3s ease;
+  position: relative;
+}
+
+.sidebar.collapsed {
+  width: 70px;
+}
+
+.sidebar-toggle {
+  position: absolute;
+  top: 1rem;
+  right: -12px;
+  z-index: 10;
+}
+
+.toggle-btn {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 1px solid #e2e8f0;
+  background: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+}
+
+.toggle-btn:hover {
+  background-color: #f1f5f9;
+  border-color: #cbd5e1;
+  box-shadow: 0 2px 4px 0 rgba(0, 0, 0, 0.1);
 }
 
 .sidebar-menu {
   list-style: none;
   padding: 0 1rem;
+  margin-top: 2rem;
+}
+
+.sidebar.collapsed .sidebar-menu {
+  padding: 0 0.5rem;
 }
 
 .sidebar-menu li {
@@ -106,6 +149,23 @@ body {
   gap: 0.75rem;
   border-radius: 8px;
   font-weight: 500;
+  justify-content: flex-start;
+}
+
+.sidebar.collapsed .sidebar-menu button {
+  padding: 0.875rem 0.5rem;
+  justify-content: center;
+  gap: 0;
+}
+
+.sidebar-menu button span {
+  transition: opacity 0.2s ease;
+}
+
+.sidebar.collapsed .sidebar-menu button span {
+  opacity: 0;
+  width: 0;
+  overflow: hidden;
 }
 
 .sidebar-menu button:hover {
@@ -402,6 +462,7 @@ body {
 .th-content {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 0.5rem;
 }
 
@@ -431,11 +492,11 @@ body {
 .campaign-table th,
 .campaign-table td {
   padding: 1rem;
-  text-align: left;
+  text-align: center;
   border-bottom: 1px solid #f1f5f9;
   font-size: 0.9rem;
   position: relative;
-  vertical-align: top;
+  vertical-align: middle;
 }
 
 /* Column width adjustments */
@@ -461,6 +522,7 @@ body {
   font-size: 0.85rem;
   color: #374151;
   word-break: break-all;
+  text-align: left;
 }
 
 .campaign-table th:nth-child(6),
@@ -518,6 +580,7 @@ body {
 .phone-actions {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 0.5rem;
 }
 
@@ -574,6 +637,29 @@ body {
   background-color: #1da851;
 }
 
+.delete-btn {
+  background: none;
+  border: none;
+  color: #dc2626;
+  cursor: pointer;
+  padding: 0.5rem;
+  border-radius: 6px;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.delete-btn:hover {
+  background-color: #fee2e2;
+  color: #b91c1c;
+  transform: scale(1.1);
+}
+
+.delete-btn:active {
+  transform: scale(0.95);
+}
+
 .loading-spinner {
   width: 14px;
   height: 14px;
@@ -591,6 +677,7 @@ body {
 .notes-cell {
   width: 280px;
   min-width: 220px;
+  text-align: left;
 }
 
 /* Editable Notes Styles */
@@ -720,7 +807,11 @@ body {
 }
 
 .action-dropdown.open {
-  z-index: 100000;
+  z-index: 1000;
+}
+
+.action-dropdown .dropdown-menu {
+  will-change: transform;
 }
 
 .status-dropdown-btn {
@@ -744,16 +835,17 @@ body {
 }
 
 .dropdown-menu {
-  position: fixed;
+  position: absolute;
   background: white;
   border: 1px solid #e2e8f0;
   border-radius: 12px;
   box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
-  z-index: 99999;
+  z-index: 100000;
   min-width: 240px;
   max-height: 500px;
   overflow-y: auto;
   animation: dropdownFadeIn 0.15s ease-out;
+  pointer-events: auto;
 }
 
 .dropdown-menu-large {
@@ -1106,6 +1198,14 @@ body {
   .sidebar {
     width: 100%;
     order: 2;
+  }
+
+  .sidebar.collapsed {
+    width: 100%;
+  }
+
+  .sidebar-toggle {
+    display: none;
   }
   
   .main-content {

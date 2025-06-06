@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Campaign } from '../App';
-import { ChevronDown, Phone, Mail, MessageSquare, Edit3, Check, X, Search, Calendar, ArrowUpDown, Filter, ChevronLeft, ChevronRight, Download } from 'lucide-react';
+import { ChevronDown, Phone, Mail, MessageSquare, Edit3, Check, X, Search, Calendar, ArrowUpDown, Filter, ChevronLeft, ChevronRight, Download, Trash2 } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
@@ -9,6 +9,7 @@ interface CampaignTableProps {
   campaigns: Campaign[];
   onFilterChange: (filters: any) => void;
   onUpdateCampaign: (id: number, updates: Partial<Campaign>) => void;
+  onDeleteCampaign: (id: number) => void;
   filters: {
     produit: string;
     provenance: string;
@@ -107,6 +108,28 @@ const ActionDropdown: React.FC<ActionDropdownProps> = ({ campaign, onUpdate }) =
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0 });
   const buttonRef = useRef<HTMLButtonElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const dropdownId = `dropdown-${campaign.id}`;
+
+  // Helper function to get translated status
+  const getTranslatedStatus = (status: string) => {
+    const statusMap: { [key: string]: string } = {
+      'nouveau': 'status.nouveau',
+      'à traiter': 'status.aTraiter',
+      'en attente': 'status.enAttente',
+      'appel en absence': 'status.appelEnAbsence',
+      'rendu': 'status.rendu',
+      'vendu': 'status.vendu',
+      'à la concurrence': 'status.alaConccurrence',
+      'injoignable': 'status.injoignable',
+      'pas intéressé': 'status.pasInteresse',
+      'trop cher': 'status.tropCher',
+      'à relancer': 'status.aRelancer',
+      'rendez-vous pris': 'status.rendezVousPris'
+    };
+    
+    const key = statusMap[status.toLowerCase()];
+    return key ? t(key) : status;
+  };
 
   const actionOptions = [
     { id: 'nouveau', labelKey: 'status.nouveau', color: '#1d4ed8', bgColor: '#dbeafe' },
@@ -131,17 +154,41 @@ const ActionDropdown: React.FC<ActionDropdownProps> = ({ campaign, onUpdate }) =
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node) &&
-          buttonRef.current && !buttonRef.current.contains(event.target as Node)) {
+      const target = event.target as Node;
+      
+      // Check if click is outside this specific dropdown
+      if (dropdownRef.current && !dropdownRef.current.contains(target) &&
+          buttonRef.current && !buttonRef.current.contains(target)) {
+        setIsOpen(false);
+      }
+    };
+
+    const handleEscapeKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
         setIsOpen(false);
       }
     };
 
     if (isOpen) {
+      // Close other dropdowns when this one opens
+      const otherDropdowns = document.querySelectorAll('.action-dropdown.open');
+      otherDropdowns.forEach(dropdown => {
+        if (dropdown.id !== dropdownId) {
+          const button = dropdown.querySelector('.status-dropdown-btn') as HTMLElement;
+          if (button) {
+            button.click();
+          }
+        }
+      });
+
       document.addEventListener('mousedown', handleClickOutside);
-      return () => document.removeEventListener('mousedown', handleClickOutside);
+      document.addEventListener('keydown', handleEscapeKey);
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside);
+        document.removeEventListener('keydown', handleEscapeKey);
+      };
     }
-  }, [isOpen]);
+  }, [isOpen, dropdownId]);
 
   const calculateDropdownPosition = () => {
     if (!buttonRef.current) return;
@@ -152,32 +199,28 @@ const ActionDropdown: React.FC<ActionDropdownProps> = ({ campaign, onUpdate }) =
     const dropdownHeight = 400;
     const dropdownWidth = 600;
 
-    let top = buttonRect.bottom + window.scrollY + 8;
-    let left = buttonRect.left + window.scrollX;
+    // For absolute positioning, we use relative coordinates
+    let top = buttonRect.height + 8; // Position below the button
+    let left = 0; // Align with button left edge
 
     // Check if dropdown would go below viewport
     if (buttonRect.bottom + dropdownHeight > viewportHeight) {
-      top = buttonRect.top + window.scrollY - dropdownHeight - 8;
+      top = -dropdownHeight - 8; // Position above the button
     }
 
     // Check if dropdown would go beyond right edge
     if (buttonRect.left + dropdownWidth > viewportWidth) {
-      left = buttonRect.right + window.scrollX - dropdownWidth;
+      left = buttonRect.width - dropdownWidth; // Align with button right edge
     }
 
     // Ensure dropdown doesn't go beyond left edge
-    if (left < 16) {
-      left = 16;
+    if (buttonRect.left + left < 16) {
+      left = -buttonRect.left + 16;
     }
 
-    // Ensure dropdown doesn't go beyond top edge
-    if (top < 16) {
-      top = 16;
-    }
-
-    // Center dropdown if it's too wide for viewport
+    // For mobile or small screens, adjust positioning
     if (dropdownWidth > viewportWidth - 32) {
-      left = 16;
+      left = -buttonRect.left + 16;
     }
 
     setDropdownPosition({ top, left });
@@ -185,18 +228,55 @@ const ActionDropdown: React.FC<ActionDropdownProps> = ({ campaign, onUpdate }) =
 
   const handleToggleDropdown = () => {
     if (!isOpen) {
-      calculateDropdownPosition();
+      // Small delay to ensure DOM is ready
+      setTimeout(() => {
+        calculateDropdownPosition();
+      }, 10);
     }
     setIsOpen(!isOpen);
   };
 
-  const handleStatusChange = (newStatus: string) => {
+  // Recalculate position on resize only (not scroll since we use absolute positioning)
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleResize = () => {
+      calculateDropdownPosition();
+    };
+
+    window.addEventListener('resize', handleResize);
+
+    return () => {
+      window.removeEventListener('resize', handleResize);
+    };
+  }, [isOpen]);
+
+  const handleStatusChange = (statusKey: string) => {
+    // Map translation keys back to French status names for database storage
+    const keyToFrenchStatus: { [key: string]: string } = {
+      'status.nouveau': 'nouveau',
+      'status.aTraiter': 'à traiter',
+      'status.enAttente': 'en attente',
+      'status.appelEnAbsence': 'appel en absence',
+      'status.rendu': 'rendu',
+      'status.vendu': 'vendu',
+      'status.alaConccurrence': 'à la concurrence',
+      'status.injoignable': 'injoignable',
+      'status.pasInteresse': 'pas intéressé',
+      'status.tropCher': 'trop cher',
+      'status.aRelancer': 'à relancer',
+      'status.rendezVousPris': 'rendez-vous pris'
+    };
+    
+    const frenchStatus = keyToFrenchStatus[statusKey] || statusKey;
+    const translatedStatus = t(statusKey);
+    
     const now = new Date();
     const timestamp = now.toLocaleString('fr-FR');
     
     onUpdate({
-      statut: newStatus,
-      notes: `${campaign.notes}\n${timestamp}: Statut changé vers "${newStatus}"`
+      statut: frenchStatus,
+      notes: `${campaign.notes}\n${timestamp}: Statut changé vers "${translatedStatus}"`
     });
     setIsOpen(false);
   };
@@ -213,7 +293,24 @@ const ActionDropdown: React.FC<ActionDropdownProps> = ({ campaign, onUpdate }) =
   };
 
   const getStatusStyle = (status: string) => {
-    const option = actionOptions.find(opt => opt.id === status.toLowerCase().replace(/\s+/g, '-'));
+    // Map French status names to option IDs
+    const statusToId: { [key: string]: string } = {
+      'nouveau': 'nouveau',
+      'à traiter': 'a-traiter',
+      'en attente': 'en-attente',
+      'appel en absence': 'appel-en-absence',
+      'rendu': 'rendu',
+      'vendu': 'vendu',
+      'à la concurrence': 'a-la-concurrence',
+      'injoignable': 'injoignable',
+      'pas intéressé': 'pas-interesse',
+      'trop cher': 'trop-cher',
+      'à relancer': 'a-relancer',
+      'rendez-vous pris': 'rendez-vous-pris'
+    };
+    
+    const optionId = statusToId[status.toLowerCase()] || status.toLowerCase().replace(/\s+/g, '-');
+    const option = actionOptions.find(opt => opt.id === optionId);
     return {
       color: option?.color || '#64748b',
       backgroundColor: option?.bgColor || '#f1f5f9'
@@ -221,14 +318,14 @@ const ActionDropdown: React.FC<ActionDropdownProps> = ({ campaign, onUpdate }) =
   };
 
   return (
-    <div className={`action-dropdown ${isOpen ? 'open' : ''}`}>
+    <div id={dropdownId} className={`action-dropdown ${isOpen ? 'open' : ''}`}>
       <button 
         ref={buttonRef}
         className="status-dropdown-btn status-badge"
         onClick={handleToggleDropdown}
         style={getStatusStyle(campaign.statut)}
       >
-        {campaign.statut}
+        {getTranslatedStatus(campaign.statut)}
         <ChevronDown size={14} />
       </button>
 
@@ -249,7 +346,7 @@ const ActionDropdown: React.FC<ActionDropdownProps> = ({ campaign, onUpdate }) =
                   <button
                     key={option.id}
                     className="dropdown-item"
-                    onClick={() => handleStatusChange(t(option.labelKey))}
+                    onClick={() => handleStatusChange(option.labelKey)}
                   >
                     <span 
                       className="status-badge" 
@@ -306,7 +403,7 @@ const ActionDropdown: React.FC<ActionDropdownProps> = ({ campaign, onUpdate }) =
   );
 };
 
-const CampaignTable: React.FC<CampaignTableProps> = ({ campaigns, onFilterChange, onUpdateCampaign, filters }) => {
+const CampaignTable: React.FC<CampaignTableProps> = ({ campaigns, onFilterChange, onUpdateCampaign, onDeleteCampaign, filters }) => {
   const { t } = useLanguage();
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const [sendingWhatsApp, setSendingWhatsApp] = useState<number | null>(null);
@@ -409,6 +506,18 @@ const CampaignTable: React.FC<CampaignTableProps> = ({ campaigns, onFilterChange
     const tableElement = document.querySelector('.campaign-table-container');
     if (tableElement) {
       tableElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  };
+
+  const handleDeleteClick = async (id: number) => {
+    if (!window.confirm(t('delete.confirm'))) {
+      return;
+    }
+
+    try {
+      await onDeleteCampaign(id);
+    } catch (error) {
+      alert(t('delete.error'));
     }
   };
 
@@ -670,6 +779,7 @@ const CampaignTable: React.FC<CampaignTableProps> = ({ campaigns, onFilterChange
                 </div>
               </th>
               <th>{t('table.notes')}</th>
+              <th>{t('table.actions')}</th>
             </tr>
           </thead>
           <tbody>
@@ -722,6 +832,15 @@ const CampaignTable: React.FC<CampaignTableProps> = ({ campaigns, onFilterChange
                     campaign={campaign}
                     onUpdate={(updates) => onUpdateCampaign(campaign.id, updates)}
                   />
+                </td>
+                <td>
+                  <button 
+                    className="delete-btn"
+                    onClick={() => handleDeleteClick(campaign.id)}
+                    title={t('table.delete')}
+                  >
+                    <Trash2 size={16} />
+                  </button>
                 </td>
               </tr>
             ))}

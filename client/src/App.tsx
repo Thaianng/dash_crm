@@ -41,6 +41,7 @@ function App() {
   });
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [currentPage, setCurrentPage] = useState('prospects');
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   const fetchCampaigns = useCallback(async () => {
     try {
@@ -84,6 +85,21 @@ function App() {
     }
   };
 
+  const deleteCampaign = async (id: number) => {
+    try {
+      await axios.delete(`http://localhost:5000/api/campaigns/${id}`);
+      
+      setFilteredCampaigns(prevCampaigns => 
+        prevCampaigns.filter(campaign => campaign.id !== id)
+      );
+
+      fetchStats();
+    } catch (error) {
+      console.error('Error deleting campaign:', error);
+      throw error;
+    }
+  };
+
   useEffect(() => {
     fetchCampaigns();
     fetchStats();
@@ -108,8 +124,10 @@ function App() {
             currentPage={currentPage} 
             onPageChange={setCurrentPage}
             onUploadClick={() => setShowUploadModal(true)}
+            isCollapsed={sidebarCollapsed}
+            onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
           />
-          <main className="main-content">
+          <main className={`main-content ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
             {currentPage === 'dashboard' && (
               <Dashboard stats={stats} />
             )}
@@ -118,6 +136,7 @@ function App() {
                 campaigns={filteredCampaigns}
                 onFilterChange={handleFilterChange}
                 onUpdateCampaign={updateCampaign}
+                onDeleteCampaign={deleteCampaign}
                 filters={filters}
               />
             )}
