@@ -4,6 +4,16 @@ const multer = require('multer');
 const XLSX = require('xlsx');
 const path = require('path');
 const fs = require('fs');
+const { 
+  initDatabase, 
+  getAllCampaigns, 
+  getCampaignById, 
+  createCampaign, 
+  updateCampaign, 
+  deleteCampaign, 
+  getStats,
+  insertSampleData 
+} = require('./database');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -27,7 +37,7 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage });
 
-let campaignData = [
+const sampleCampaignData = [
   {
     id: 1,
     date: '09/03/2024 18:12',
@@ -306,10 +316,11 @@ let campaignData = [
   }
 ];
 
-app.get('/api/campaigns', (req, res) => {
-  const { produit, provenance, statut, dateRange, searchQuery, sortBy, sortOrder } = req.query;
-  
-  let filteredData = [...campaignData];
+app.get('/api/campaigns', async (req, res) => {
+  try {
+    const { produit, provenance, statut, dateRange, searchQuery, sortBy, sortOrder } = req.query;
+    
+    let filteredData = await getAllCampaigns();
   
   // Product filter
   if (produit && produit !== 'all') {
@@ -411,6 +422,10 @@ app.get('/api/campaigns', (req, res) => {
   }
   
   res.json(filteredData);
+  } catch (error) {
+    console.error('Error fetching campaigns:', error);
+    res.status(500).json({ error: 'Error fetching campaigns' });
+  }
 });
 
 // Helper function to parse different date formats
@@ -433,25 +448,23 @@ function parseDate(dateString) {
   return isNaN(date.getTime()) ? null : date;
 }
 
-app.put('/api/campaigns/:id', (req, res) => {
+app.put('/api/campaigns/:id', async (req, res) => {
   try {
     const campaignId = parseInt(req.params.id);
     const updates = req.body;
     
-    const campaignIndex = campaignData.findIndex(campaign => campaign.id === campaignId);
+    const campaign = await getCampaignById(campaignId);
     
-    if (campaignIndex === -1) {
+    if (!campaign) {
       return res.status(404).json({ error: 'Campaign not found' });
     }
     
-    campaignData[campaignIndex] = {
-      ...campaignData[campaignIndex],
-      ...updates
-    };
+    await updateCampaign(campaignId, updates);
+    const updatedCampaign = await getCampaignById(campaignId);
     
     res.json({ 
       message: 'Campaign updated successfully', 
-      campaign: campaignData[campaignIndex] 
+      campaign: updatedCampaign 
     });
   } catch (error) {
     console.error('Error updating campaign:', error);
@@ -459,22 +472,21 @@ app.put('/api/campaigns/:id', (req, res) => {
   }
 });
 
-app.delete('/api/campaigns/:id', (req, res) => {
+app.delete('/api/campaigns/:id', async (req, res) => {
   try {
     const campaignId = parseInt(req.params.id);
     
-    const campaignIndex = campaignData.findIndex(campaign => campaign.id === campaignId);
+    const campaign = await getCampaignById(campaignId);
     
-    if (campaignIndex === -1) {
+    if (!campaign) {
       return res.status(404).json({ error: 'Campaign not found' });
     }
     
-    const deletedCampaign = campaignData[campaignIndex];
-    campaignData.splice(campaignIndex, 1);
+    await deleteCampaign(campaignId);
     
     res.json({ 
       message: 'Campaign deleted successfully', 
-      campaign: deletedCampaign 
+      campaign: campaign 
     });
   } catch (error) {
     console.error('Error deleting campaign:', error);
@@ -482,7 +494,7 @@ app.delete('/api/campaigns/:id', (req, res) => {
   }
 });
 
-app.post('/api/upload-excel', upload.single('excelFile'), (req, res) => {
+app.post('/api/upload-excel', upload.single('excelFile'), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'No file uploaded' });
@@ -508,7 +520,6 @@ app.post('/api/upload-excel', upload.single('excelFile'), (req, res) => {
 
     const processedData = data.map((row, index) => {
       const processedRow = {
-        id: campaignData.length + index + 1,
         date: findValue(row, ['Date', 'date', 'DATE', 'Ngày', 'ngày'], new Date().toLocaleDateString()),
         product: findValue(row, ['Product', 'product', 'PRODUCT', 'Produit', 'produit', 'Sản phẩm', 'sản phẩm']),
         provenance: findValue(row, ['Source', 'source', 'SOURCE', 'Provenance', 'provenance', 'Nguồn', 'nguồn']),
@@ -550,14 +561,19 @@ app.post('/api/upload-excel', upload.single('excelFile'), (req, res) => {
       return processedRow;
     });
 
-    campaignData = [...campaignData, ...processedData];
+    // Insert processed data into database
+    const insertedCampaigns = [];
+    for (const campaign of processedData) {
+      const inserted = await createCampaign(campaign);
+      insertedCampaigns.push(inserted);
+    }
 
     fs.unlinkSync(req.file.path);
 
     res.json({ 
       message: 'File uploaded and processed successfully', 
-      count: processedData.length,
-      data: processedData 
+      count: insertedCampaigns.length,
+      data: insertedCampaigns 
     });
   } catch (error) {
     console.error('Error processing Excel file:', error);
@@ -565,23 +581,30 @@ app.post('/api/upload-excel', upload.single('excelFile'), (req, res) => {
   }
 });
 
-app.get('/api/stats', (req, res) => {
-  const total = campaignData.length;
-  const nouveau = campaignData.filter(item => item.statut === 'Nouveau').length;
-  const aTraiter = campaignData.filter(item => item.statut === 'À traiter').length;
-  const rendezVousPris = campaignData.filter(item => 
-    item.statut === 'Rendez-vous pris' || item.statut === 'Vendu'
-  ).length;
-  
-  res.json({
-    total,
-    nouveau,
-    aTraiter,
-    rendezVousPris,
-    conversionRate: total > 0 ? Math.round((rendezVousPris / total) * 100) : 0
-  });
+app.get('/api/stats', async (req, res) => {
+  try {
+    const stats = await getStats();
+    res.json(stats);
+  } catch (error) {
+    console.error('Error fetching stats:', error);
+    res.status(500).json({ error: 'Error fetching stats' });
+  }
 });
 
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-}); 
+// Initialize database and start server
+const startServer = async () => {
+  try {
+    await initDatabase();
+    await insertSampleData(sampleCampaignData);
+    
+    app.listen(PORT, () => {
+      console.log(`Server running on port ${PORT}`);
+      console.log('Database initialized successfully');
+    });
+  } catch (error) {
+    console.error('Failed to initialize database:', error);
+    process.exit(1);
+  }
+};
+
+startServer(); 
